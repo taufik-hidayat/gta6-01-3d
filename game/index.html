@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teluk Bayu 3D — Open-World Crime Game</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1026; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  /* Read aloud, never shown: the status line screen readers announce. */
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .hidden { display: none !important; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #f2f4f7; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  .panel { background: rgba(8, 12, 20, 0.62); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 8px 12px; }
+  #hud-top { position: absolute; top: 12px; right: 14px; display: flex; gap: 10px; align-items: center; }
+  #hud-money { font-size: 26px; font-weight: 800; color: #7ddf8a; }
+  #hud-stars { font-size: 22px; letter-spacing: 2px; color: #ffd23a; }
+  #hud-stars.hot { color: #ff5a4a; animation: blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .45; } }
+  #hud-clock { font-size: 20px; font-weight: 700; }
+  #hud-left { position: absolute; top: 12px; left: 14px; display: flex; flex-direction: column; gap: 8px; }
+  #hud-health { width: 190px; }
+  #hud-health-bar { height: 10px; background: rgba(255,255,255,.18); border-radius: 5px; overflow: hidden; margin-top: 4px; }
+  #hud-health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #37c978, #7ddf8a); }
+  #hud-ammo { font-size: 17px; font-weight: 700; }
+  #hud-objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 46%; text-align: center; font-size: 16px; font-weight: 600; }
+  #hud-prompt { position: absolute; bottom: 118px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 700; background: rgba(8,12,20,.72); border: 1px solid #ffd23a; color: #ffd23a; border-radius: 8px; padding: 8px 16px; }
+  #hud-toast { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); max-width: 640px; text-align: center; font-size: 17px; line-height: 1.45; background: rgba(8,12,20,.78); border-radius: 10px; padding: 12px 18px; }
+  #hud-speed { position: absolute; bottom: 16px; right: 18px; font-size: 30px; font-weight: 800; }
+  #hud-map { position: absolute; bottom: 16px; left: 16px; width: 180px; height: 180px; border-radius: 8px; border: 2px solid rgba(255,255,255,.25); }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #f2f4f7; background: linear-gradient(180deg, rgba(5,8,18,.55), rgba(5,8,18,.82)); }
+  .screen h1 { margin: 0 0 4px; font-size: 74px; letter-spacing: 4px; font-weight: 900; color: #ffd23a; text-shadow: 0 4px 0 #7a2d12, 0 8px 24px rgba(0,0,0,.7); }
+  .screen h2 { margin: 0 0 18px; font-size: 22px; font-weight: 600; letter-spacing: 6px; color: #e8eef5; }
+  .screen p { max-width: 620px; font-size: 17px; line-height: 1.55; margin: 6px 0; color: #d6dce6; }
+  .screen .keys { font-size: 15px; color: #9aa7b8; }
+  .screen .cta { margin-top: 22px; font-size: 20px; font-weight: 800; color: #ffd23a; animation: blink 1.1s steps(2) infinite; }
+  .screen .big { font-size: 30px; font-weight: 800; color: #7ddf8a; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game" aria-label="Teluk Bayu 3D: an open-world crime game. Drive, explore the city, dodge the police and finish the story."></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud" class="hidden">
+  <div id="hud-left">
+    <div id="hud-health" class="panel"><span id="hud-health-text">100 HP</span><div id="hud-health-bar"><div id="hud-health-fill"></div></div></div>
+    <div id="hud-ammo" class="panel">🔫 12</div>
+  </div>
+  <div id="hud-objective" class="panel"></div>
+  <div id="hud-top">
+    <div id="hud-clock" class="panel">17:30</div>
+    <div id="hud-stars" class="panel">☆☆☆☆☆</div>
+    <div id="hud-money" class="panel">$0</div>
+  </div>
+  <div id="hud-prompt" class="hidden"></div>
+  <div id="hud-toast" class="hidden"></div>
+  <div id="hud-speed"></div>
+  <canvas id="hud-map" width="180" height="180"></canvas>
+</div>
+
+<div id="screen-title" class="screen">
+  <h1>TELUK BAYU</h1>
+  <h2>OPEN-WORLD CRIME · 3D</h2>
+  <p>Raka, a getaway driver, is back in Teluk Bayu. Steal cars, outrun the police, and run three jobs for Mira and Bang Darto — a package, a city-wide raid, and one last vault.</p>
+  <p class="keys">WASD / Arrows — move &amp; drive &nbsp;·&nbsp; E — enter / exit car &amp; interact &nbsp;·&nbsp; F — punch &nbsp;·&nbsp; Click — shoot &nbsp;·&nbsp; Shift — run / handbrake &nbsp;·&nbsp; Drag mouse — orbit camera &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — mute</p>
+  <p class="cta">PRESS ENTER TO START</p>
+</div>
+
+<div id="screen-pause" class="screen hidden">
+  <h1>PAUSED</h1>
+  <p>Teluk Bayu waits for no one — except right now.</p>
+  <p class="cta">PRESS P OR ENTER TO CONTINUE</p>
+</div>
+
+<div id="screen-busted" class="screen hidden">
+  <h1>BUSTED</h1>
+  <p>The cops caught you. They take a $150 fine and let you walk — this time.</p>
+  <p class="cta">PRESS ENTER TO CONTINUE</p>
+</div>
+
+<div id="screen-wasted" class="screen hidden">
+  <h1>WASTED</h1>
+  <p>Raka wakes up at the safehouse, lighter by $100 and twice as careful.</p>
+  <p class="cta">PRESS ENTER TO TRY AGAIN</p>
+</div>
+
+<div id="screen-done" class="screen hidden">
+  <h1>STORY COMPLETE</h1>
+  <p class="big">Total earned: <span id="done-total">$2,875</span></p>
+  <p>Three jobs, one city, zero arrests that stuck. Teluk Bayu has a new king.</p>
+  <p class="cta">PRESS ENTER TO PLAY AGAIN</p>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
