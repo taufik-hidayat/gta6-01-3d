@@ -13,10 +13,10 @@ export const WORLD = {
 };
 
 export const DAY = {
-  /** Clock starts at golden hour, so the first frames already look like a film still. */
-  startHour: 17.5,
+  /** Clock starts at midday, so the first frames are bright daylight. */
+  startHour: 12.0,
   /** Seconds for one full day-night cycle. */
-  cycleSeconds: 480,
+  cycleSeconds: 960,
 };
 
 export const PLAYER = {

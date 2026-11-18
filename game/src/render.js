@@ -294,6 +294,9 @@ export function createRenderer(canvas, city) {
 
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
   const camState = { yaw: Math.PI / 2, orbit: 0, pitch: 0, titleAngle: 0 };
+  // Previous frame's absolute time (seconds), for time-based camera smoothing:
+  // the follow-cam lerp and the title orbit must feel the same at 30, 60 or 120 Hz.
+  let prevElapsed = null;
   const skyDay = new THREE.Color(PALETTE.skyDay);
   const skyDusk = new THREE.Color(PALETTE.skyDusk);
   const skyNight = new THREE.Color(PALETTE.skyNight);
@@ -318,8 +321,8 @@ export function createRenderer(canvas, city) {
     scene.fog.color.copy(skyColor);
     // The night floor stays high enough to read by: a city at night is dark blue, not
     // black — the ground, roads and car shapes must still be visible at 21:00.
-    hemi.intensity = 0.55 + dayFactor * 0.45;
-    sun.intensity = 0.35 + dayFactor * 0.85;
+    hemi.intensity = 0.70 + dayFactor * 0.30;
+    sun.intensity = 0.45 + dayFactor * 0.75;
     sun.color.setHSL(0.09, 0.7, 0.55 + dayFactor * 0.15);
     sun.position.set(Math.cos(sunAngle) * 120, Math.max(12, sunHeight * 140), 60);
     sun.target.position.set(0, 0, 0);
@@ -330,6 +333,11 @@ export function createRenderer(canvas, city) {
   }
 
   function draw(state, screen, elapsed, missionTarget) {
+    // Wall-clock frame time, clamped: the camera smoothing below is per second,
+    // not per frame, so the feel is identical at any refresh rate. (Shot mode
+    // passes a fixed scene time, so dt is 0 there — snapYaw already aims the camera.)
+    const dt = prevElapsed === null ? 0 : Math.min(Math.max(elapsed - prevElapsed, 0), 0.1);
+    prevElapsed = elapsed;
     const player = state.player;
     const nightFactor = updateDayNight(state.clockHours);
 
@@ -403,7 +411,7 @@ export function createRenderer(canvas, city) {
 
     // Camera.
     if (screen === SCREEN_TITLE) {
-      camState.titleAngle += 0.0004;
+      camState.titleAngle += dt * 0.024;
       const radius = 150;
       camera.position.set(Math.sin(camState.titleAngle) * radius, 62, Math.cos(camState.titleAngle) * radius);
       camera.lookAt(0, 8, 0);
@@ -412,7 +420,9 @@ export function createRenderer(canvas, city) {
       let diff = targetYaw - camState.yaw;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      camState.yaw += diff * 0.06;
+      // Time-based follow: 1 - exp(-dt * 3.7) equals the old 0.06-per-frame at
+      // 60 fps, but stays the same speed at 30 or 120 Hz instead of lagging or racing.
+      camState.yaw += diff * (1 - Math.exp(-dt * 3.7));
       const dist = player.onFoot ? 7 : 13;
       const height = player.onFoot ? 3.2 : 5.5;
       const backX = Math.sin(camState.yaw);
